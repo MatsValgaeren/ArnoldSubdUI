@@ -1,3 +1,5 @@
+# Elise Bourgoignie 
+# Mats Valgaeren
 from maya import cmds
 
 class ArnoldSubdUI:
@@ -52,7 +54,7 @@ class ArnoldSubdUI:
             "subOptionMenu",
             label="Sub Type",
             cal=[1, "left"],
-            cw=(1, 47)
+            cw=(1, 62)
         )
         cmds.menuItem(label="none")
         cmds.menuItem(label="catclark")
@@ -67,7 +69,7 @@ class ArnoldSubdUI:
             minValue=0,
             maxValue=100,
             value=2,
-            w=50
+            w=1
         )
 
         cmds.separator(h=10, style="none")  # Spacer
@@ -88,13 +90,15 @@ class ArnoldSubdUI:
         Closes and removes preferences for any previous window with this name.
         Prevents multiple instances of the UI.
         """
-        # Deletes the previous window if a new one is created
+        # Delete the window if it exists
         if cmds.window(self.tool_window, exists=True):
             cmds.deleteUI(self.tool_window)
 
-        # Resets window size before making a new one
-        cmds.windowPref(self.tool_window, remove=True)
-
+        # Safely remove window preferences (ignore errors if none exist)
+        try:
+            cmds.windowPref(self.tool_window, remove=True)
+        except RuntimeError:
+            pass  # No preferences to remove
 
     def set_subdiv_and_iterations(self, *args):
         """
