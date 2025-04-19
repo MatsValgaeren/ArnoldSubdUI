@@ -1,91 +1,128 @@
-#Elise Bourgoignie
 from maya import cmds
 
 class ArnoldSubdUI:
     """
-    A Maya tool for adjusting the Attribute Editor Arnold Subdivision tab for multiple objects simultaneously
+    Maya tool for batch-editing Arnold Subdivision attributes on multiple mesh objects.
+    Provides a simple UI to set subdivision type and iteration count for selected meshes.
     """
 
     def __init__(self):
-        #Initialize variables
+        # Window title and unique window name (lowercase, underscores)
         self.window_title = "Set Arnold Subdivision"
         self.tool_window = self.window_title.replace(" ", "_").casefold()
 
-        #Build UI
+        # Ensure previous instances are cleaned up, then build the UI
         self.window_cleaner()
         self.build_ui()
 
     def build_ui(self):
         """
-        Constructs the user interface for the tool.
+        Constructs the UI window and its controls.
         """
-        self.tool_window = cmds.window(self.tool_window,
-                                       title=self.window_title,
-                                       widthHeight=(400, 300))
+        # Create main window
+        self.tool_window = cmds.window(
+            self.tool_window,
+            title=self.window_title,
+            resizeToFitChildren=True
+        )
+
+        # Main layout: vertical column
         cmds.columnLayout(adjustableColumn=True, rowSpacing=10)
 
-        self.mainLayout = cmds.columnLayout(w=250, h=150)
+        # Container for all UI elements
+        self.mainLayout = cmds.columnLayout(w=300, h=150, adjustableColumn=True)
 
-        #Title text
-        cmds.text(label="Arnold Subdivisions",
-                  w=250, h=50, fn="boldLabelFont",
-                  bgc=(0.15,0.15,0.15))
-        cmds.separator(h=10, style="none")
+        # Title label
+        cmds.text(
+            label="Arnold Subdivisions",
+            w=250, h=50, fn="boldLabelFont",
+            bgc=(0.15, 0.15, 0.15)
+        )
+        cmds.separator(h=10, style="none")  # Spacer
 
-        self.rowLayout = cmds.rowColumnLayout( nc=3, cw= [(1,150),(2,50),(3,50)],
-                                               columnOffset=[(1, "both", 5),
-                                               (2, "both", 5), (3, "both", 5)])
+        # Row layout: Subdivision type and iterations input
+        self.rowLayout = cmds.rowColumnLayout(
+            nc=3,
+            cw=[(1, 150), (2, 60), (3, 50)],
+            adjustableColumn=True
+        )
 
-        #Dropdown layout
-        self.subOptionMenu = cmds.optionMenuGrp("subOptionMenu", label="Sub Type", cal=[1, "left"], cw=(1, 47))
+        # Dropdown for subdivision type
+        self.subOptionMenu = cmds.optionMenuGrp(
+            "subOptionMenu",
+            label="Sub Type",
+            cal=[1, "left"],
+            cw=(1, 47)
+        )
         cmds.menuItem(label="none")
         cmds.menuItem(label="catclark")
         cmds.menuItem(label="linear")
-
-        #Set catclark as default
+        # Set 'catclark' as default (index 2)
         cmds.optionMenuGrp(self.subOptionMenu, e=1, sl=2)
 
-        #Iteration input field
-        self.iterationNumbtext = cmds.text(label="Iterations", fn="plainLabelFont", align="left")
-        self.iterationNumb     = cmds.intField("iterationNumb", minValue=0, maxValue=100, value=2, w=10)
+        # Iteration count input
+        self.iterationNumbtext = cmds.text(label="Iterations", fn="plainLabelFont")
+        self.iterationNumb = cmds.intField(
+            "iterationNumb",
+            minValue=0,
+            maxValue=100,
+            value=2,
+            w=50
+        )
 
-        cmds.separator(h=10, style="none")
+        cmds.separator(h=10, style="none")  # Spacer
 
-        self.subBtn = cmds.button(label = "Set Subdivisions",w=250, h=50, parent=self.mainLayout,
-                                  command=self.set_subdiv_and_iterations)
+        # Main action button
+        self.subBtn = cmds.button(
+            label="Set Subdivisions",
+            w=250, h=50,
+            parent=self.mainLayout,
+            command=self.set_subdiv_and_iterations
+        )
 
-        #Display UI
+        # Show the window
         cmds.showWindow(self.tool_window)
 
     def window_cleaner(self):
         """
-        Cleans up any existing UI window with the same name before creating a new one.
+        Closes and removes preferences for any previous window with this name.
+        Prevents multiple instances of the UI.
         """
+        # Deletes the previous window if a new one is created
         if cmds.window(self.tool_window, exists=True):
             cmds.deleteUI(self.tool_window)
 
+        # Resets window size before making a new one
+        cmds.windowPref(self.tool_window, remove=True)
+
+
     def set_subdiv_and_iterations(self, *args):
         """
-        Loops over the selection and only applies changes to valid mesh objects.
+        Applies the selected subdivision type and iteration count to all selected mesh objects.
+        Only valid mesh shapes with Arnold attributes are updated.
         """
-
-        #Catch selection at the moment of the button being activated
+        # Get current selection
         self.selection = cmds.ls(sl=True, long=True)
 
         if not self.selection:
             cmds.warning("No objects selected. Please select one or more objects and try again.")
             return
 
+        # Get subdivision type from dropdown (optionMenuGrp is 1-based, Arnold expects 0-based)
         sub_type = cmds.optionMenuGrp(self.subOptionMenu, q=True, sl=True) - 1
+        # Get iteration count from intField
         iteration_count = cmds.intField(self.iterationNumb, q=True, v=True)
 
-        updated_objects = 0
+        updated_objects = 0  # Counter for successful updates
 
         for obj in self.selection:
+            # Get shape node(s) for the transform
             shape = cmds.listRelatives(obj, shapes=True, fullPath=True)
 
+            # Only proceed if shape exists and is a mesh
             if shape and cmds.nodeType(shape[0]) == "mesh":
                 try:
+                    # Check if Arnold subdivision attributes exist
                     if cmds.attributeQuery("aiSubdivType", node=shape[0], exists=True):
                         cmds.setAttr(shape[0] + ".aiSubdivType", sub_type)
                         cmds.setAttr(shape[0] + ".aiSubdivIterations", iteration_count)
@@ -95,11 +132,15 @@ class ArnoldSubdUI:
                 except Exception as e:
                     cmds.warning(f"Failed to set attributes for {obj}: {e}")
 
+        # Feedback to user
         if updated_objects > 0:
-            cmds.inViewMessage(amg=f"<hl>{updated_objects} object(s) updated with new subdivision settings!</hl>",
-                               pos="topCenter", fade=True)
+            cmds.inViewMessage(
+                amg=f"<hl>{updated_objects} object(s) updated with new subdivision settings!</hl>",
+                pos="topCenter",
+                fade=True
+            )
         else:
             cmds.warning("No valid mesh objects found in the selection.")
 
-# Run the tool
+# Instantiate and show the UI
 ArnoldSubdUI()
